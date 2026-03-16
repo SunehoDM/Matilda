@@ -1,0 +1,17 @@
+{
+  "name": "Matilda",
+  "short_name": "Matilda",
+  "description": "an organiser for the loml",
+  "start_url": "/matilda/",
+  "scope": "/matilda/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5ede0",
+  "theme_color": "#b87333",
+  "icons": [
+    {"src":"/matilda/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"/matilda/icon-192.png","sizes":"192x192","type":"image/png","purpose":"maskable"},
+    {"src":"/matilda/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"/matilda/icon-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}
+  ]
+}
