@@ -279,6 +279,9 @@ body{font-family:'DM Sans',system-ui,sans-serif;color:#2c2016;min-height:100vh;m
     <div class="sdiv"></div>
     <div class="slabel" style="margin-bottom:7px">today</div>
     <div style="font-size:10px;color:var(--t3);text-align:center;padding:2px 0 6px;font-style:italic" id="sync-status">connecting…</div>
+        <div style="padding:4px 4px 8px">
+      <button onclick="initNotifications()" style="width:100%;background:none;border:1px solid var(--bd);color:var(--t2);padding:5px 8px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:6px"><svg width="13" height="13" fill="none" viewBox="0 0 16 16"><path d="M8 2a5 5 0 015 5v3l1.5 2H1.5L3 10V7a5 5 0 015-5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 13.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> enable notifications</button>
+    </div>
     <div class="glass">
       <div class="gdate" id="gdate"></div>
       <div id="gentries"></div>
@@ -517,11 +520,12 @@ function renderMonth(){
     const show=de.slice(0,3),more=de.length-3;
     return `<div class="dcell${isT?' today':''}${other?' other':''}" onclick="openDay('${ds}')">
       <span class="dnum">${d.getDate()}</span>
-      ${show.map(e=>{
-        const c=C(e.cat);
-        const pgCls=e.forPG?' pg-pill':'';
-        return `<div class="pill${pgCls}" style="background:${c.bg};color:${c.tx};border-left:2.5px solid ${c.bd}${e.forPG?';border:1px solid var(--pg)':''}" onclick="event.stopPropagation();editEntry('${e.id}')">${SI(e.cat,c.tx,9)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.title}</span>${e.forPG?`<span class="pg-badge" style="font-size:8px;padding:0 3px">PG</span>`:''}</div>`;
-      }).join('')}
+      ${(()=>{
+        // Group by category - show unique icons only
+        const seen={};const icons=[];
+        show.forEach(e=>{if(!seen[e.cat]){seen[e.cat]=true;const c=C(e.cat);icons.push(`<span title="${c.label}" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:${c.bg};border:1px solid ${c.bd};flex-shrink:0" onclick="event.stopPropagation();openDay('${fmt(new Date())}')">${SI(e.cat,c.tx,10)}</span>`)}});
+        return `<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:2px">${icons.join('')}${de.length>show.length?`<span style="font-size:9px;color:var(--t3);align-self:center">+${de.length-show.length}</span>`:''}</div>`;
+      })()}
       ${more>0?`<div class="pmore">+${more}</div>`:''}
     </div>`;
   }).join('');
@@ -835,6 +839,62 @@ const _s=document.getElementById('sidebar');
 const _sv=localStorage.getItem('matilda-sidebar');
 if(window.innerWidth<=640){_s.classList.add('collapsed');}
 else if(_sv==='0'){_s.classList.add('collapsed');}
+
+// ── LOCAL NOTIFICATIONS ──────────────────────────────────────
+async function requestNotifPermission(){
+  if(!('Notification' in window)) return false;
+  if(Notification.permission==='granted') return true;
+  if(Notification.permission==='denied') return false;
+  const p = await Notification.requestPermission();
+  return p==='granted';
+}
+
+function scheduleNotifications(){
+  if(!('Notification' in window)||Notification.permission!=='granted') return;
+  // Clear any existing scheduled notifs stored in localStorage
+  const scheduled = JSON.parse(localStorage.getItem('matilda-notif-scheduled')||'{}');
+  const now = new Date();
+  const todayStr = fmt(now);
+  const tomorrowStr = fmt(new Date(now.getTime()+86400000));
+
+  // Schedule for today and tomorrow
+  [todayStr, tomorrowStr].forEach(dateStr=>{
+    const dayEntries = entries.filter(e=>e.date===dateStr&&e.startTime&&!e.done);
+    dayEntries.forEach(e=>{
+      const key = e.id+'_'+dateStr;
+      if(scheduled[key]) return; // already scheduled
+      const [hh,mm] = e.startTime.split(':').map(Number);
+      const eventTime = new Date(dateStr+'T'+e.startTime+':00');
+      const reminderMins = e.reminderMin!=null ? e.reminderMin : 10;
+      const notifTime = new Date(eventTime.getTime() - reminderMins*60000);
+      const delay = notifTime.getTime() - now.getTime();
+      if(delay < 0) return; // already past
+      if(delay > 48*3600000) return; // too far ahead
+      const c = C(e.cat);
+      setTimeout(()=>{
+        if(Notification.permission==='granted'){
+          new Notification('Matilda — '+c.label, {
+            body: e.title + (e.startTime ? ' at '+e.startTime : ''),
+            icon: '/Matilda/icon-192.png',
+            badge: '/Matilda/icon-192.png',
+            tag: e.id,
+            requireInteraction: false,
+          });
+        }
+      }, Math.max(delay, 0));
+      scheduled[key] = notifTime.toISOString();
+    });
+  });
+  localStorage.setItem('matilda-notif-scheduled', JSON.stringify(scheduled));
+}
+
+async function initNotifications(){
+  const granted = await requestNotifPermission();
+  if(granted) scheduleNotifications();
+}
+// ─────────────────────────────────────────────────────────────
+
+initNotifications();
 </script>
 
 <div class="bottom-nav" id="bottom-nav">
